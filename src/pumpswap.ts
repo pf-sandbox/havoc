@@ -50,6 +50,9 @@ const Fee_config = new PublicKey('5PHirr8joyTMp9JMm6nW7hNDVyEYdkzDqazxPD7RaTjx')
 const fee_program = new PublicKey('pfeeUxB6jkeY1Hxd7CsFCAjcbHA9rWtchMGdZ6VojVZ');
   
 export const DEFAULT_DECIMALS = 6;
+export const DEFAULT_PRIORITY_FEE_MICROLAMPORTS = 696969;
+export const DEFAULT_COMPUTE_UNITS = 300000;
+export const DEFAULT_SLIPPAGE = 0.3; // 30%
 
 export class PumpSwapSDK {
   public program: Program<PumpSwap>;
@@ -58,8 +61,7 @@ export class PumpSwapSDK {
     // this.program = new Program<PumpSwap>(IDL as PumpSwap, provider);
     // this.connection = this.program.provider.connection;
   }
-  public async buy(mint:PublicKey, user:PublicKey, solToBuy:number){
-    const slippage = 0.3; // Default: 30%
+  public async buy(mint:PublicKey, user:PublicKey, solToBuy:number, slippage:number = DEFAULT_SLIPPAGE, priorityFeeUicroLamports:number = DEFAULT_PRIORITY_FEE_MICROLAMPORTS, computeUnits:number = DEFAULT_COMPUTE_UNITS){
     const bought_token_amount = await getBuyTokenAmount(BigInt(solToBuy*LAMPORTS_PER_SOL), mint);
     // logger.info(
     //   {
@@ -72,10 +74,10 @@ export class PumpSwapSDK {
     const ix_list:any[] =[
         ...[
           ComputeBudgetProgram.setComputeUnitLimit({
-            units: 300000,
+            units: computeUnits,
           }),
           ComputeBudgetProgram.setComputeUnitPrice({
-            microLamports: 696969
+            microLamports: priorityFeeUicroLamports
           })
         ],
 
@@ -105,7 +107,7 @@ export class PumpSwapSDK {
       console.log(`Successful buy: ${transactionSignature}`);
   }
 
-  public async sell_exactAmount(mint:PublicKey, user:PublicKey, tokenAmount:number){
+  public async sell_exactAmount(mint:PublicKey, user:PublicKey, tokenAmount:number, priorityFeeUicroLamports:number = DEFAULT_PRIORITY_FEE_MICROLAMPORTS, computeUnits:number = 100000){
     const sell_token_amount = tokenAmount;
     // logger.info(
     //   {
@@ -118,10 +120,10 @@ export class PumpSwapSDK {
     const ix_list:any[] =[
         ...[
           ComputeBudgetProgram.setComputeUnitLimit({
-            units: 100000,
+            units: computeUnits,
           }),
           ComputeBudgetProgram.setComputeUnitPrice({
-            microLamports: 696969
+            microLamports: priorityFeeUicroLamports
           })
         ],
 
@@ -149,7 +151,7 @@ export class PumpSwapSDK {
     const transactionSignature = await helius.rpc.sendTransaction(transaction);
     console.log(`Successful sell: ${transactionSignature}`);
   }
-  public async sell_percentage(mint:PublicKey, user:PublicKey, percentage_to_sell:number){
+  public async sell_percentage(mint:PublicKey, user:PublicKey, percentage_to_sell:number, priorityFeeUicroLamports:number = DEFAULT_PRIORITY_FEE_MICROLAMPORTS, computeUnits:number = 100000){
     const holding_token_amount = await getSPLBalance(connection, mint, user);
     const sell_token_amount = percentage_to_sell * holding_token_amount;  
     // logger.info(
@@ -163,10 +165,10 @@ export class PumpSwapSDK {
     const ix_list:any[] =[
         ...[
           ComputeBudgetProgram.setComputeUnitLimit({
-            units: 100000,
+            units: computeUnits,
           }),
           ComputeBudgetProgram.setComputeUnitPrice({
-            microLamports: 696969
+            microLamports: priorityFeeUicroLamports
           })
         ],
 
