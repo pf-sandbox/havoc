@@ -1,138 +1,161 @@
 import { Logger } from 'pino';
+import fs from "fs";
+import { getAssociatedTokenAddressSync } from '@solana/spl-token';
+import {
+  Connection,
+  Keypair,
+  PublicKey,
+  Transaction,
+  SystemProgram,
+  sendAndConfirmTransaction,
+  LAMPORTS_PER_SOL,
+} from '@solana/web3.js';
+import { logger } from './logger';
+import bs58 from 'bs58';
+import {connection} from "../constants"
 import dotenv from 'dotenv';
-import fs from 'fs';
-import jwt from 'jsonwebtoken';
-import axios from 'axios';
+import * as path from 'path';
+const relativeDotenvPath = "../../.env";
 
-dotenv.config();
+// Resolve the absolute path
+const absoluteDotenvPath = path.resolve(__dirname, relativeDotenvPath);
+dotenv.config({
+  path: absoluteDotenvPath,
+});
+const log_path =  ""
+export const TOKEN_PROGRAM_ID = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 
-export const retrieveEnvVariable = (variableName: string, logger: Logger) => {
+
+export async function getSPLTokenBalance(connection:Connection, tokenAccount:PublicKey, payerPubKey:PublicKey) {
+  try{
+  const address = getAssociatedTokenAddressSync(tokenAccount, payerPubKey);
+  const info = await connection.getTokenAccountBalance(address, "processed");
+  if (info.value.uiAmount == null) throw new Error("No balance found");
+  return info.value.uiAmount;
+  }catch(err:any){
+      logger.error(`Errr when checking token balance...`)
+  }
+  return 0;
+}
+export function retrieveEnvVariable(variableName: string, logger: Logger){
   const variable = process.env[variableName] || '';
   if (!variable) {
-    console.log(`${variableName} is not set`);
+    logger.error(`${variableName} is not set`);
     process.exit(1);
   }
   return variable;
-};
-
-// Define the type for the JSON file content
-export interface Data {
-  privateKey: string;
-  pubkey: string;
 }
 
-
-export const randVal = (min: number, max: number, count: number, total: number, isEven: boolean): number[] => {
-
-  const arr: number[] = Array(count).fill(total / count);
-  if (isEven) return arr
-
-  if (max * count < total)
-    throw new Error("Invalid input: max * count must be greater than or equal to total.")
-  if (min * count > total)
-    throw new Error("Invalid input: min * count must be less than or equal to total.")
-  const average = total / count
-  // Randomize pairs of elements
-  for (let i = 0; i < count; i += 2) {
-    // Generate a random adjustment within the range
-    const adjustment = Math.random() * Math.min(max - average, average - min)
-    // Add adjustment to one element and subtract from the other
-    arr[i] += adjustment
-    arr[i + 1] -= adjustment
-  }
-  // if (count % 2) arr.pop()
-  return arr;
-}
-
-export const saveDataToFile = (newData: Data[], filePath: string = "data.json") => {
+export function getKeypairByJsonPath(jsonPath: string): any {
   try {
-    let existingData: Data[] = [];
-
-    // Check if the file exists
-    if (fs.existsSync(filePath)) {
-      // If the file exists, read its content
-      const fileContent = fs.readFileSync(filePath, 'utf-8');
-      existingData = JSON.parse(fileContent);
-    }
-
-    // Add the new data to the existing array
-    existingData.push(...newData);
-
-    // Write the updated data back to the file
-    fs.writeFileSync(filePath, JSON.stringify(existingData, null, 2));
-
-  } catch (error) {
-    try {
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-        console.log(`File ${filePath} deleted and create new file.`);
-      }
-      fs.writeFileSync(filePath, JSON.stringify(newData, null, 2));
-      console.log("File is saved successfully.")
-    } catch (error) {
-      console.log('Error saving data to JSON file:', error);
-    }
+    const keypairJson = fs.readFileSync(jsonPath, "utf-8");
+    const data = JSON.parse(keypairJson);
+    const mintKeypair = Keypair.fromSecretKey(Uint8Array.from(data));
+    return mintKeypair
+  } catch (e) {
+    console.log(e);
   }
+}
+export async function printSOLBalance  (
+  connection: Connection,
+  pubKey: PublicKey,
+  info = ""
+) {
+  const balance = await connection.getBalance(pubKey);
+  console.log(
+    `${info ? info + " " : ""}${pubKey.toBase58()}:`,
+    balance / LAMPORTS_PER_SOL,
+    `SOL`
+  );
 };
 
-export const sleep = async (ms: number) => {
-  await new Promise((resolve) => setTimeout(resolve, ms))
+export async function getSOLBalance(connection:Connection, pubKey:PublicKey){
+  const balance = await connection.getBalance(pubKey);
+  return balance / LAMPORTS_PER_SOL;
 }
 
-export function deleteConsoleLines(numLines: number) {
-  for (let i = 0; i < numLines; i++) {
-    process.stdout.moveCursor(0, -1); // Move cursor up one line
-    process.stdout.clearLine(-1);        // Clear the line
-  }
-}
-
-// Function to read JSON file
-export function readJson(filename: string = "data.json"): Data[] {
-    if (!fs.existsSync(filename)) {
-        // If the file does not exist, create an empty array
-        fs.writeFileSync(filename, '[]', 'utf-8');
-    }
-    const data = fs.readFileSync(filename, 'utf-8');
-    return JSON.parse(data) as Data[];
-}
-
-// Function to write JSON file
-export function writeJson( data: Data[], filename: string = "data.json",): void {
-    fs.writeFileSync(filename, JSON.stringify(data, null, 4), 'utf-8');
-}
-
-// Function to edit JSON file content
-export function editJson(newData: Partial<Data>, filename: string = "data.json"): void {
-  if(!newData.pubkey) {
-    console.log("Pubkey is not prvided as an argument")
-    return
-  }
-  const wallets = readJson(filename);
-  const index = wallets.findIndex(wallet => wallet.pubkey === newData.pubkey);
-  if (index !== -1) {
-      wallets[index] = { ...wallets[index], ...newData };
-      writeJson(wallets, filename);
+export async function getSPLBalance  (
+  connection: Connection,
+  mintAddress: PublicKey,
+  pubKey: PublicKey,
+  allowOffCurve = false
+): Promise<number> {  
+  try {
+    let ata = getAssociatedTokenAddressSync(mintAddress, pubKey, allowOffCurve);
+    const balance = await connection.getTokenAccountBalance(ata, "confirmed");
+    return balance.value.uiAmount || 0;
+  } catch (e) {}
+  return 0;
+};
+export async function printSPLBalance (
+  connection: Connection,
+  mintAddress: PublicKey,
+  user: PublicKey,
+  info = ""
+) {
+  const balance = await getSPLBalance(connection, mintAddress, user);
+  if (balance === null) {
+    console.log(
+      `${info ? info + " " : ""}${user.toBase58()}:`,
+      "No Account Found"
+    );
   } else {
-      console.error(`Pubkey ${newData.pubkey} does not exist.`);
+    console.log(`${info ? info + " " : ""}${user.toBase58()}:`, balance);
   }
+};
+export async function retriveWalletState(wallet_address: string) {
+  try{
+  const filters = [
+    {
+      dataSize: 165, //size of account (bytes)
+    },
+    {
+      memcmp: {
+        offset: 32, //location of our query in the account (bytes)
+        bytes: wallet_address, //our search criteria, a base58 encoded string
+      },
+    },
+  ];
+  const accounts = await connection.getParsedProgramAccounts(
+    TOKEN_PROGRAM_ID, //new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
+    { filters: filters }
+  );
+  let results = {};
+  const solBalance = await connection.getBalance(new PublicKey(wallet_address));
+  accounts.forEach((account, i) => {
+    //Parse the account data
+    const parsedAccountInfo = account.account.data;
+    const mintAddress = parsedAccountInfo["parsed"]["info"]["mint"];
+    const tokenBalance =
+      parsedAccountInfo["parsed"]["info"]["tokenAmount"]["uiAmount"];
+    results[mintAddress] = tokenBalance;
+  });
+  results["SOL"] = solBalance / 10 ** 9;
+  return results || {};
+}catch(e){
+  console.log(e)
+}
+return {};
 }
 
-export async function formatDate() {
-    const options: any = {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        timeZone: 'UTC',
-        timeZoneName: 'short'
-    };
-
-    const now = new Date();
-    return now.toLocaleString('en-US', options);
+export async function getDecimals(mintAddress: PublicKey): Promise<number> {
+  const info:any = await connection.getParsedAccountInfo(mintAddress);
+  const result = (info.value?.data).parsed.info.decimals || 0;
+  return result;
 }
 
-export function convertHttpToWebSocket(httpUrl: string): string {
-    return httpUrl.replace(/^https?:\/\//, 'wss://');
+export async function writeLineToLogFile(logMessage:string){
+  fs.appendFile(log_path, `${logMessage}\n`, (err) => {
+    if (err) {
+      console.error('Error writing to log file:', err);
+    } else {
+      //console.log('Log message written successfully.');
+    }
+  });
 }
+
+
+async function main(){
+
+}
+// main()

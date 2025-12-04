@@ -1,76 +1,39 @@
 # HAVOC - Mayhem Mode v2
 
-internal testing, not for production
+Lightweight bot for amplifying bonding curve liquidity on Pump.fun Mayhem Mode tokens with distributed wallet coordination and low-latency transaction landing.
 
-## Setup
+### Highlights
+- Multi-wallet randomized buy/sell cycles
+- Automated liquidity supplementation during first 24 hours
+- Integrated low-latency transaction landing with Jito, Nozomi, 0slot, BlockRazor, bloXroute
+- Configurable timing and position sizing
 
-install dependencies
+This bot can route signed transactions to one or more landing providers in parallel for faster inclusion.
 
-```bash
-npm install
+- Warm up connections (health pings) before burst submissions.
+- Use fresh recent blockhashes and avoid reusing expired ones.
+- Prefer parallel submission for time-sensitive trades.
+- Monitor provider responses and adjust routing in real time.
+
+### Transaction
+```typescript
+const { solAmt, sellPercentage } = await getMayhemConfig();
+
+async function main() {
+  const mint = '2az8Wzi99L8Ee5TGXoyPXRnRoKToqq6dHN8DgVZEpump';
+
+  // Pull dynamic values from mayhem
+  const solAmt = mayhem(data.solAmt);     
+  const sellPercentage = mayhem(data.solAmt);
+
+  const sdk = new PumpSwapSDK();
+  await sdk.buy(new PublicKey(mint), wallet_1.publicKey, solAmt);
+  await sdk.sell_percentage(new PublicKey(mint), wallet_1.publicKey, sellPercentage);
+  await sdk.sell_exactAmount(new PublicKey(mint), wallet_1.publicKey, 1000);
+}
 ```
-
-configure `.env`
-
-```env
-PRIVATE_KEY=your_base58_encoded_private_key
-RPC_ENDPOINT=https://api.mainnet-beta.solana.com
-RPC_WEBSOCKET_ENDPOINT=wss://api.mainnet-beta.solana.com
-
-TOKEN_MINT=your_token_mint_address
-BUY_LOWER_PERCENT=10
-BUY_UPPER_PERCENT=30
-BUY_INTERVAL_MIN=30
-BUY_INTERVAL_MAX=120
-SELL_INTERVAL_MIN=60
-SELL_INTERVAL_MAX=300
-
-DISTRIBUTE_WALLET_NUM=5
-JITO_MODE=false
-SLIPPAGE=1.0
-```
-
-## Running
-
-development
-
-```bash
-npm run build
-npx ts-node src/index.ts
-```
-
-production
-
-```bash
-npm run build
-node dist/index.js
-```
-
-## What This Is
-
-HAVOC (Mayhem Mode v2) randomly supplements liquidity during the first 24 hours
-
-operates on rotated SOL from previous HAVOC cycles that feed asymmetrical buy pressure into the upper bonding curve via liquidity flywheel that cycles profit into the next target
-
-## How It Works
-
-1. split SOL across N wallets
-2. each runs randomized buy/sell cycles tracking Mayhem activity
-3. timing and amounts intentionally unpredictable
-4. operates during the same window
-
-coordinates with Mayhem to amplify bonding curve pressure
-
-## Parameters
-
-- `BUY_LOWER_PERCENT` / `BUY_UPPER_PERCENT`: buy amount as % of wallet
-- `BUY_INTERVAL_MIN/MAX`: wait time between acquisition (seconds)
-- `SELL_INTERVAL_MIN/MAX`: wait time between distribution (seconds)
-- `DISTRIBUTE_WALLET_NUM`: number of nodes to deploy
-- `JITO_MODE`: use Jito for transaction execution
 
 ## Notes
 
-- internal testing, do not distribute
-- designed for Mayhem Mode tokens only (\`is_mayhem_mode = true\`)
-- gas fees significant, calculate runway before deployment
+- Works best if `is_mayhem_mode = true`
+- Internal testing, not for production use
