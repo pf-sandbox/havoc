@@ -120,17 +120,18 @@ export async function retriveWalletState(wallet_address: string) {
     TOKEN_PROGRAM_ID, //new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
     { filters: filters }
   );
-  let results = {};
-  const solBalance = await connection.getBalance(new PublicKey(wallet_address));
-  accounts.forEach((account, i) => {
-    //Parse the account data
-    const parsedAccountInfo = account.account.data;
-    const mintAddress = parsedAccountInfo["parsed"]["info"]["mint"];
-    const tokenBalance =
-      parsedAccountInfo["parsed"]["info"]["tokenAmount"]["uiAmount"];
-    results[mintAddress] = tokenBalance;
-  });
-  results["SOL"] = solBalance / 10 ** 9;
+  let results: any = {};
+   const solBalance = await connection.getBalance(new PublicKey(wallet_address));
+   accounts.forEach((account, i) => {
+     //Parse the account data
+     const parsedAccountInfo = account.account.data as any;
+     const mintAddress = parsedAccountInfo?.parsed?.info?.mint;
+     const tokenBalance = parsedAccountInfo?.parsed?.info?.tokenAmount?.uiAmount;
+     if (mintAddress && tokenBalance !== undefined) {
+       results[mintAddress] = tokenBalance;
+     }
+   });
+   (results as any)["SOL"] = solBalance / 10 ** 9;
   return results || {};
 }catch(e){
   console.log(e)

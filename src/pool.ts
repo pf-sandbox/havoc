@@ -28,37 +28,37 @@ interface PoolWithPrice extends Pool {
 }
 
 const getPoolsWithBaseMint = async (mintAddress: PublicKey) => {
-    let response=null , is_err=true,cnt=0;;
-    
-    while(is_err){
-      if(cnt>=20) break;
-      try{
-        response = await connection.getProgramAccounts(PUMP_AMM_PROGRAM_ID, {
-            filters: [
-                {
-                  "memcmp": {
-                    "offset": 43,
-                    "bytes": mintAddress.toBase58()
-                  }
-                }
-              ]
-            }
-        )
-        if(response.length > 0) {
-          
-          is_err = false;
-        }else{
-          console.log("no data returned, retrying...")
-        }
-        console.log(response);
-      }catch(err){
-        is_err = true
-      }
-      cnt++;
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
+     let response: any = null , is_err=true,cnt=0;;
+     
+     while(is_err){
+       if(cnt>=20) break;
+       try{
+         response = await connection.getProgramAccounts(PUMP_AMM_PROGRAM_ID, {
+             filters: [
+                 {
+                   "memcmp": {
+                     "offset": 43,
+                     "bytes": mintAddress.toBase58()
+                   }
+                 }
+               ]
+             }
+         )
+         if(response && response.length > 0) {
+           
+           is_err = false;
+         }else{
+           console.log("no data returned, retrying...")
+         }
+         console.log(response);
+       }catch(err){
+         is_err = true
+       }
+       cnt++;
+       await new Promise(resolve => setTimeout(resolve, 100));
+     }
 
-    const mappedPools = response.map((pool) => {
+     const mappedPools = (response || []).map((pool) => {
         const data = Buffer.from(pool.account.data);
         const poolData = program.coder.accounts.decode('pool', data);
         return {
@@ -132,33 +132,33 @@ const getPoolsWithBaseMintQuoteWSOL = async (mintAddress: PublicKey) => {
 }
 
 export const getPriceAndLiquidity = async (pool: Pool) => {
-    const wsolAddress = pool.poolData.poolQuoteTokenAccount;
-    const tokenAddress = pool.poolData.poolBaseTokenAccount;
-    let wsolBalance, tokenBalance;
-    let is_err = true, cnt=0;
-    while(is_err){
-      if(cnt>=10) break;
-      try{
-        wsolBalance = await connection.getTokenAccountBalance(wsolAddress);
-        tokenBalance = await connection.getTokenAccountBalance(tokenAddress);
-        is_err = false;
-      }catch(err){
-        is_err = true;
-      }
-      cnt++;
-      await new Promise(resolve => setTimeout(resolve, 500));
-    }
-    const price = wsolBalance.value.uiAmount! / tokenBalance.value.uiAmount!;
+     const wsolAddress = pool.poolData.poolQuoteTokenAccount;
+     const tokenAddress = pool.poolData.poolBaseTokenAccount;
+     let wsolBalance: any, tokenBalance: any;
+     let is_err = true, cnt=0;
+     while(is_err){
+       if(cnt>=10) break;
+       try{
+         wsolBalance = await connection.getTokenAccountBalance(wsolAddress);
+         tokenBalance = await connection.getTokenAccountBalance(tokenAddress);
+         is_err = false;
+       }catch(err){
+         is_err = true;
+       }
+       cnt++;
+       await new Promise(resolve => setTimeout(resolve, 500));
+     }
+     const price = (wsolBalance?.value.uiAmount || 0) / (tokenBalance?.value.uiAmount || 1);
 
-    return {
-        ...pool,
-        price,
-        reserves: {
-            native: wsolBalance.value.uiAmount!,
-            token: tokenBalance.value.uiAmount!
-        }
-    } as PoolWithPrice;
-}
+     return {
+         ...pool,
+         price,
+         reserves: {
+             native: wsolBalance?.value.uiAmount || 0,
+             token: tokenBalance?.value.uiAmount || 0
+         }
+     } as PoolWithPrice;
+ }
 export const getPoolsWithPrices = async (mintAddress: PublicKey) => {
     const [poolsWithBaseMint] = await Promise.all([
         getPoolsWithBaseMint(mintAddress),
