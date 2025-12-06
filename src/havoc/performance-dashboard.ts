@@ -37,6 +37,8 @@ export interface PerformanceMetrics {
   // Rug prevention
   rugsDetected: number;
   rugsSuppressed: number;
+  // Community participation score (internal, reserved for future distribution mechanisms)
+  participationScore?: number;
 }
 
 export interface DashboardSnapshot {
@@ -86,6 +88,7 @@ export class PerformanceDashboard {
       volatilityReduction: 0,
       rugsDetected: 0,
       rugsSuppressed: 0,
+      participationScore: 0,
     });
 
     logger.info(`Performance tracking started for ${mintKey.slice(0, 8)}`);
@@ -109,6 +112,10 @@ export class PerformanceDashboard {
     if (metrics) {
       metrics.totalActionsExecuted++;
       metrics.actionBreakdown[actionType] = (metrics.actionBreakdown[actionType] ?? 0) + 1;
+      // Participation scoring (internal use)
+      if (metrics.participationScore !== undefined) {
+        metrics.participationScore += 1;
+      }
     }
   }
 
