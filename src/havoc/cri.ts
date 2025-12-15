@@ -51,22 +51,62 @@ interface CRIRecord {
   lastUpdated: number;
   observationCount: number;
   historicalBands: CRIBand[]; // For trend analysis
+  rugDetections: { timestamp: number; severity: number }[]; // For temporal decay
+  recidivismCount: number; // Number of times dev rugged before
+}
+
+/**
+ * Apply temporal decay to historical rug detections.
+ * Recent rugs matter more; old rugs fade (but recidivism amplifies them).
+ */
+function applyTemporalDecay(
+  rugDetections: { timestamp: number; severity: number }[],
+  recidivismCount: number
+): number {
+  let decayedPenalty = 0;
+  const now = Date.now();
+  const HALF_LIFE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+  
+  for (const detection of rugDetections) {
+    const ageMs = now - detection.timestamp;
+    // Exponential decay: severity * e^(-age / half_life)
+    const decayFactor = Math.exp(-ageMs / HALF_LIFE_MS);
+    const decayedSeverity = detection.severity * decayFactor;
+    decayedPenalty += decayedSeverity;
+  }
+  
+  // Recidivism multiplier: each rug after the first is worse
+  // First rug: 1x, Second: 2.5x, Third+: 4x
+  const recidivismMultiplier = recidivismCount === 0 ? 1 : 
+    recidivismCount === 1 ? 2.5 : 4;
+  
+  return decayedPenalty * recidivismMultiplier;
 }
 
 /**
  * Opaque scoring algorithm.
  * Deterministic, but not exposed externally.
  * Inputs are weighted and combined in a non-obvious way.
+ * Incorporates temporal decay for rug history and recidivism penalties.
  */
-function computeScore(input: CRIInput): number {
+function computeScore(input: CRIInput, record?: CRIRecord): number {
   // Internal calculation remains black box
   // Below is a placeholder architecture - actual weights/formulas are hidden
   
   let score = 50; // Neutral baseline
   
-  // Rug penalty (opaque weighting)
-  score -= Math.min(input.previousRugDetections * 15, 40);
-  score -= input.rugSeverity * 20;
+  // Rug penalty with temporal decay (if record available)
+  if (record) {
+    const decayedRugPenalty = applyTemporalDecay(
+      record.rugDetections,
+      record.recidivismCount
+    );
+    score -= Math.min(decayedRugPenalty * 20, 45); // Cap at 45 points
+  } else {
+    // Fallback for first evaluation (no historical data)
+    score -= Math.min(input.previousRugDetections * 15, 40);
+    score -= input.rugSeverity * 20;
+  }
   
   // Graduation history bonus
   const gradRate = input.graduationHistory.successfulLaunches / 
@@ -125,16 +165,17 @@ export class CreatorReputationIndex {
   /**
    * Evaluate or update a dev's CRI.
    * Returns only the band classification externally.
+   * Incorporates temporal decay and recidivism.
    */
   async evaluate(input: CRIInput): Promise<CRIBand> {
     const devKey = input.devWallet.toBase58();
+    const existing = this.records.get(devKey);
     
-    // Compute internal score
-    const score = computeScore(input);
+    // Compute internal score with temporal awareness
+    const score = computeScore(input, existing);
     const band = scoreToBand(score);
     
-    // Update record
-    const existing = this.records.get(devKey);
+    // Initialize or update record
     const record: CRIRecord = {
       devWallet: input.devWallet,
       internalScore: score,
@@ -142,6 +183,8 @@ export class CreatorReputationIndex {
       lastUpdated: Date.now(),
       observationCount: (existing?.observationCount ?? 0) + 1,
       historicalBands: [...(existing?.historicalBands ?? []), band].slice(-100),
+      rugDetections: existing?.rugDetections ?? [],
+      recidivismCount: existing?.recidivismCount ?? 0,
     };
     
     this.records.set(devKey, record);
@@ -152,6 +195,31 @@ export class CreatorReputationIndex {
     }
     
     return band;
+  }
+
+  /**
+   * Record a rug detection for temporal decay tracking.
+   */
+  recordRugDetection(devWallet: PublicKey, severity: number): void {
+    const devKey = devWallet.toBase58();
+    const record = this.records.get(devKey);
+    
+    if (record) {
+      record.rugDetections.push({ timestamp: Date.now(), severity });
+      
+      // Check if this is a repeat offense
+      const recentRugs = record.rugDetections.filter(
+        (r) => Date.now() - r.timestamp < 60 * 24 * 60 * 60 * 1000 // 60 days
+      );
+      
+      if (recentRugs.length > 1) {
+        record.recidivismCount++;
+      }
+      
+      logger.warn(
+        `Rug recorded for ${devKey.slice(0, 8)}: severity=${severity.toFixed(2)}, recidivism=${record.recidivismCount}`
+      );
+    }
   }
 
   /**

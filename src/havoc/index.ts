@@ -14,3 +14,5 @@ export { default as MayhemSignalProvider, type MayhemSignalData, type ChaosMetri
 export { default as LiquidityManager, type LiquidityOrder, type LiquidityBudget } from "./liquidity-manager";
 export { default as PoolIntegration, type HavocPoolState } from "./pool-integration";
 export { default as PerformanceDashboard, type PerformanceMetrics, type DashboardSnapshot } from "./performance-dashboard";
+export { default as PatternDetector, type AnomalyScore, type PatternSignature, type TransitionProbability } from "./pattern-detector";
+export { HavocEventEmitter, getHavocEventEmitter, resetEventEmitter, type HavocEventType, type CRIChangeEvent, type StateTransitionEvent, type ActionExecutedEvent, type RugDetectedEvent, type AnomalyDetectedEvent, type BudgetAlertEvent } from "./event-emitter";
