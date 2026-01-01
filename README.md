@@ -1,4 +1,4 @@
-# Havoc AI Agent Bot
+# MayhemV2
 
 Ai Agent market-making system for pump.fun tokens that evaluates creator behavior and adjusts liquidity support accordingly.
 
